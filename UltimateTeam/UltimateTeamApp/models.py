@@ -11,7 +11,7 @@ class Equipo(models.Model):
 
     def __str__(self):
         if hasattr(self, 'usuario'):
-            return f"{self.nombre} (Propietario: {self.usuario.nombre})"
+            return f"{self.nombre}"
         return self.nombre
 
 class Usuario(models.Model):

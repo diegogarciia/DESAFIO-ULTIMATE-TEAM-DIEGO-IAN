@@ -14,6 +14,9 @@ urlpatterns = [
     #CARTA JUGADOR
     path('obtenerCartaJugador/<int:id>', views.get_cartaID),
     path('obtenerCartas',views.get_cartas),
-    path('añadirCarta', views.add_carta)
+    path('añadirCarta', views.add_carta),
+    path('modificarCarta/<int:id>', views.update_carta),
+    path('actualizarCarta/<int:id>', views.activar_carta),
+    path('borrarCarta/<int:id>', views.desactivar_carta)
 
 ]

@@ -1,13 +1,19 @@
 import json
+
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.http import JsonResponse
 
 # Create your views here.
 
-from .models import Usuario, Equipo
+from .models import Usuario, Equipo, CartasJugadore
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 
-@csrf_exempt
+ATRIBUTOS_JUGADOR = ["ritmo", "tiro", "pase", "regate", "defensa", "fisico"]
+ATRIBUTOS_PORTERO = ["estirada", "parada", "saque", "reflejos", "posicionamiento", "velocidad"]
+
+
 def get_usuarioID(request, id):
     if request.method == "GET":
         try:
@@ -124,3 +130,255 @@ def delete_usuario(request, id):
             return JsonResponse({'mensaje': 'Usuario eliminado correctamente'})
         except Usuario.DoesNotExist as e:
             return JsonResponse({"error": "Error al borrar el usuario" + e.message}, status=404)
+
+
+
+
+def get_cartaID(request, id):
+    if request.method == "GET":
+        try:
+            carta_jugador = CartasJugadore.objects.values().get(id=id)
+
+            if carta_jugador.get('equipo_id') is not None:
+                return JsonResponse({
+                    "error": f"La carta con ID {id} pertenece a un equipo y no puede ser consultada individualmente."
+                }, status=403)
+
+            if carta_jugador.get('posicion') == 'POR':
+                for key in ATRIBUTOS_JUGADOR:
+                    if key in carta_jugador:
+                        del carta_jugador[key]
+
+            if carta_jugador.get('posicion') != 'POR':
+                for key in ATRIBUTOS_PORTERO:
+                    if key in carta_jugador:
+                        del carta_jugador[key]
+
+
+            return JsonResponse(carta_jugador)
+
+        except CartasJugadore.DoesNotExist:
+            return JsonResponse({"error": "Carta no encontrada"}, status=404)
+
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al consultar la carta: {str(e)}"}, status=500)
+    else:
+        return JsonResponse({"error": "Operación no soportada"}, status=405)
+
+
+def get_cartas(request):
+    if request.method == "GET":
+        try:
+            cartas_query = CartasJugadore.objects.filter(equipo_id__isnull=True).values()
+
+            cartas_list = list(cartas_query)
+
+            cartas_filtradas = []
+
+            for carta_data in cartas_list:
+                posicion = carta_data.get('posicion')
+
+                carta_filtrada = carta_data.copy()
+
+                if posicion == 'POR':
+                    for key in ATRIBUTOS_JUGADOR:
+                        if key in carta_filtrada:
+                            del carta_filtrada[key]
+                else:
+                    for key in ATRIBUTOS_PORTERO:
+                        if key in carta_filtrada:
+                            del carta_filtrada[key]
+
+                cartas_filtradas.append(carta_filtrada)
+            return JsonResponse(cartas_filtradas, safe=False)
+
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al listar cartas: {str(e)}"}, status=500)
+    else:
+        return JsonResponse({"error": "Operación no soportada"}, status=405)
+
+
+@csrf_exempt
+def add_carta(request):
+    if request.method == 'POST':
+        try:
+            jsonCarta = json.loads(request.body)
+            nombre = jsonCarta.get('nombre')
+            posicion = jsonCarta.get('posicion')
+
+            if not nombre or not posicion:
+                return JsonResponse({"error": "Los campos 'nombre' y 'posicion' son obligatorios."}, status=400)
+
+            try:
+                carta_existente = CartasJugadore.objects.get(nombre=nombre, esta_activa=False)
+
+
+                carta_existente.esta_activa = True
+                carta_existente.save(update_fields=['esta_activa'])
+
+                return JsonResponse({
+                    "mensaje": f"La carta '{nombre}' ya existía y ha sido reactivada (esta_activa=True).",
+                    "id": carta_existente.id,
+                    "media_actual": carta_existente.media
+                })
+
+            except CartasJugadore.DoesNotExist:
+                pass
+            jsonCarta.pop('equipo', None)
+            jsonCarta.pop('equipo_id', None)
+            jsonCarta.pop('media', None)
+
+
+            if posicion == 'POR':
+                for attr in ATRIBUTOS_JUGADOR:
+                    jsonCarta.pop(attr, None)
+            else:
+                for attr in ATRIBUTOS_PORTERO:
+                    jsonCarta.pop(attr, None)
+
+
+            carta = CartasJugadore.objects.create(**jsonCarta)
+
+            return JsonResponse({
+                "mensaje": "Se ha insertado correctamente",
+                "id": carta.id,
+                "media_final": carta.media
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Formato JSON inválido."}, status=400)
+        except ValidationError as e:
+            return JsonResponse(
+                {"error": f"Error de validación: {e.message_dict if hasattr(e, 'message_dict') else e.message}"},status=400)
+        except IntegrityError as e:
+            return JsonResponse({"error": f"Error de integridad: Ya existe una carta activa con el nombre '{nombre}'."},status=400)
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al añadir la carta: {str(e)}"}, status=500)
+    else:
+        return JsonResponse({"error": "Operación no soportada"}, status=405)
+
+
+@csrf_exempt
+def update_carta(request, id):
+    if request.method in ('PUT', 'PATCH'):
+        try:
+            carta = CartasJugadore.objects.get(id=id)
+            data = json.loads(request.body)
+
+            if carta.equipo is not None:
+                return JsonResponse({
+                    "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y no puede ser actualizada."
+                }, status=403)
+
+
+            data.pop('id', None)
+            data.pop('equipo', None)
+            data.pop('equipo_id', None)
+            data.pop('media', None)
+
+            for key, value in data.items():
+                setattr(carta, key, value)
+
+            carta.save()
+
+            response_data = {
+                'id': carta.id,
+                'nombre': carta.nombre,
+                'pais': carta.pais,
+                'posicion': carta.posicion,
+                'liga': carta.liga,
+                'esta_activa': carta.esta_activa,
+                'media_nueva': carta.media,
+                'mensaje_adicional': 'Las estadísticas se actualizaron correctamente'
+            }
+
+            return JsonResponse(response_data)
+
+        except CartasJugadore.DoesNotExist:
+            return JsonResponse({"error": "Carta no encontrada"}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Formato JSON inválido."}, status=400)
+        except ValidationError as e:
+
+            return JsonResponse({"error": f"Error de validación del modelo: {e.message_dict if hasattr(e, 'message_dict') else str(e)}"},status=400)
+        except IntegrityError as e:
+            return JsonResponse({"error": f"Error de integridad de datos: {str(e)}"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al actualizar la carta: {str(e)}"}, status=500)
+
+    else:
+        return JsonResponse({"error": "Método no soportado. Usa PUT o PATCH."}, status=405)
+
+
+@csrf_exempt
+def activar_carta(request, id):
+        if request.method == 'POST':
+            try:
+                carta = CartasJugadore.objects.get(id=id)
+
+                if carta.equipo is not None:
+                    return JsonResponse({
+                        "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y su estado activo no puede ser modificado."
+                    }, status=403)
+
+                if carta.esta_activa:
+                    return JsonResponse({
+                        "mensaje": f"La carta '{carta.nombre}' ya estaba activa. No se requiere ninguna acción."
+                    }, status=200)
+
+
+                carta.esta_activa = True
+                carta.save(update_fields=['esta_activa'])
+
+
+                return JsonResponse({
+                    "mensaje": f"La carta '{carta.nombre}' ha sido ACTIVADA correctamente.",
+                    "estado_activo": True
+                })
+
+            except CartasJugadore.DoesNotExist:
+                return JsonResponse({"error": "Carta no encontrada"}, status=404)
+
+            except Exception as e:
+                return JsonResponse({"error": f"Error inesperado al activar la carta: {str(e)}"}, status=500)
+
+        else:
+            return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)
+
+
+@csrf_exempt
+def desactivar_carta(request, id):
+
+    if request.method == 'POST':
+        try:
+            carta = CartasJugadore.objects.get(id=id)
+
+            if carta.equipo is not None:
+                return JsonResponse({
+                    "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y su estado activo no puede ser modificado."
+                }, status=403)
+
+
+            if not carta.esta_activa:
+                return JsonResponse({
+                    "mensaje": f"La carta '{carta.nombre}' ya estaba inactiva. No se requiere ninguna acción."
+                }, status=200)
+
+
+            carta.esta_activa = False
+
+            carta.save(update_fields=['esta_activa'])
+
+            return JsonResponse({
+                "mensaje": f"La carta '{carta.nombre}' ha sido DESACTIVADA (borrado lógico) correctamente.",
+                "estado_activo": False
+            })
+
+        except CartasJugadore.DoesNotExist:
+            return JsonResponse({"error": "Carta no encontrada"}, status=404)
+
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al desactivar la carta: {str(e)}"}, status=500)
+
+    else:
+        return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)

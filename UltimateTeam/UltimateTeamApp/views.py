@@ -1,7 +1,8 @@
 import json
+import random
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 
 # Create your views here.
@@ -379,6 +380,103 @@ def desactivar_carta(request, id):
 
         except Exception as e:
             return JsonResponse({"error": f"Error inesperado al desactivar la carta: {str(e)}"}, status=500)
+
+    else:
+        return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)
+
+@csrf_exempt
+@transaction.atomic
+def asignar_equipo_servicio(request, usuario_id):
+
+    if request.method == 'POST':
+        try:
+
+            try:
+                usuario = Usuario.objects.get(pk=usuario_id)
+            except Usuario.DoesNotExist:
+                return JsonResponse({'error': 'Usuario no encontrado.'}, status=404)
+
+            if usuario.equipo is not None:
+                return JsonResponse(
+                    {'error': 'Este usuario ya tiene un equipo asociado. Debe eliminarse el equipo previamente.'},
+                    status=400
+                )
+
+            cartas_libres = CartasJugadore.objects.filter(equipo=None, esta_activa=True)
+
+            porteros_libres = []
+            defensas_libres = []
+            centrocampistas_libres = []
+            delanteros_libres = []
+
+            for carta in cartas_libres:
+                tipo = carta.tipo_posicion
+                if tipo == 'Portero':
+                    porteros_libres.append(carta)
+                elif tipo == 'Defensa':
+                    defensas_libres.append(carta)
+                elif tipo == 'Centrocampista':
+                    centrocampistas_libres.append(carta)
+                elif tipo == 'Delantero':
+                    delanteros_libres.append(carta)
+
+            min_por = 2
+            min_def = 8
+            min_cen = 6
+            min_del = 5
+
+            if (len(porteros_libres) < min_por or
+                    len(defensas_libres) < min_def or
+                    len(centrocampistas_libres) < min_cen or
+                    len(delanteros_libres) < min_del):
+                return JsonResponse(
+                    {'error': 'No hay suficientes jugadores libres disponibles para crear un equipo completo.'},
+                    status=409
+                )
+
+            num_por = random.randint(min_por, 3)
+            num_def = random.randint(min_def, 10)
+            num_cen = random.randint(min_cen, 9)
+            num_del = random.randint(min_del, 6)
+
+            total_jugadores = num_por + num_def + num_cen + num_del
+            while not (23 <= total_jugadores <= 25):
+                num_por = random.randint(min_por, 3)
+                num_def = random.randint(min_def, 10)
+                num_cen = random.randint(min_cen, 9)
+                num_del = random.randint(min_del, 6)
+                total_jugadores = num_por + num_def + num_cen + num_del
+
+            nuevo_equipo = Equipo.objects.create(nombre=f"Equipo de {usuario.nombre}")
+
+            usuario.equipo = nuevo_equipo
+            usuario.save()
+
+            cartas_seleccionadas = []
+            cartas_seleccionadas.extend(random.sample(porteros_libres, num_por))
+            cartas_seleccionadas.extend(random.sample(defensas_libres, num_def))
+            cartas_seleccionadas.extend(random.sample(centrocampistas_libres, num_cen))
+            cartas_seleccionadas.extend(random.sample(delanteros_libres, num_del))
+
+            ids_cartas_seleccionadas = [carta.id for carta in cartas_seleccionadas]
+            CartasJugadore.objects.filter(id__in=ids_cartas_seleccionadas).update(equipo=nuevo_equipo)
+
+            return JsonResponse({
+                'mensaje': '¡Equipo creado y asignado con éxito!',
+                'equipo_id': nuevo_equipo.id,
+                'nombre_equipo': nuevo_equipo.nombre,
+                'propietario': usuario.nombre,
+                'total_jugadores': total_jugadores,
+                'composicion': {
+                    'porteros': num_por,
+                    'defensas': num_def,
+                    'centrocampistas': num_cen,
+                    'delanteros': num_del
+                }
+            }, status=201)
+
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al asignar el equipo: {str(e)}"}, status=500)
 
     else:
         return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)

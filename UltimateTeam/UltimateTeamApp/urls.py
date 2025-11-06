@@ -19,6 +19,7 @@ urlpatterns = [
     path('actualizarCarta/<int:id>', views.activar_carta),
     path('borrarCarta/<int:id>', views.desactivar_carta),
 
-    path('usuario/asignarEquipo/<int:usuario_id>', views.asignar_equipo_servicio, name='asignar-equipo'),
+    #ASIGNAR EQUIPO A UN USUARIO
+    path('usuario/asignarEquipo/<int:usuario_id>', views.asignar_equipo_servicio),
 
 ]

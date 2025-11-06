@@ -153,3 +153,19 @@ class CartasJugadore(models.Model):
         self.clean()
         self.media = self.valoracion_general
         super().save(*args, **kwargs)
+
+    @property
+    def tipo_posicion(self):
+
+        if self.posicion == self.Posiciones.POR:
+            return 'Portero'
+
+        if self.posicion in [self.Posiciones.DFC, self.Posiciones.LI, self.Posiciones.LD]:
+            return 'Defensa'
+
+        if self.posicion in [self.Posiciones.MCD, self.Posiciones.MC, self.Posiciones.MI,
+                             self.Posiciones.MD, self.Posiciones.MCO]:
+            return 'Centrocampista'
+
+        if self.posicion in [self.Posiciones.DC, self.Posiciones.SD, self.Posiciones.EI, self.Posiciones.ED]:
+            return 'Delantero'

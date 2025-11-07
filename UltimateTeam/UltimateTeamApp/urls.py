@@ -22,4 +22,7 @@ urlpatterns = [
     #ASIGNAR EQUIPO A UN USUARIO
     path('usuario/asignarEquipo/<int:usuario_id>', views.asignar_equipo_servicio),
 
+    #CONSULTAR EL EQUIPO DE UN USUARIO
+    path('usuarioConsultarEquipo/<int:usuario_id>', views.get_equipo_usuario),
+
 ]

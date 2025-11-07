@@ -484,3 +484,52 @@ def asignar_equipo_servicio(request, usuario_id):
 
     else:
         return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)
+
+@csrf_exempt
+def get_equipo_usuario(request, usuario_id):
+    if request.method == "GET":
+        try:
+            usuario = Usuario.objects.get(pk=usuario_id)
+
+            if usuario.equipo is None:
+                return JsonResponse({
+                    "error": "Este usuario no tiene ningún equipo asignado."
+                }, status=404)
+
+            equipo = usuario.equipo
+
+            cartas_del_equipo = equipo.cartas.filter(esta_activa=True).values()
+
+            cartas_list = list(cartas_del_equipo)
+
+            cartas_filtradas = []
+            for carta_data in cartas_list:
+                posicion = carta_data.get('posicion')
+                carta_filtrada = carta_data.copy()
+
+                if posicion == 'POR':
+                    for key in ATRIBUTOS_JUGADOR:
+                        if key in carta_filtrada:
+                            del carta_filtrada[key]
+                else:
+                    for key in ATRIBUTOS_PORTERO:
+                        if key in carta_filtrada:
+                            del carta_filtrada[key]
+
+                cartas_filtradas.append(carta_filtrada)
+
+            response_data = {
+                'propietario': usuario.nombre,
+                'equipo_id': equipo.id,
+                'nombre_equipo': equipo.nombre,
+                'cartas_activas': cartas_filtradas
+            }
+
+            return JsonResponse(response_data, safe=False)
+
+        except Usuario.DoesNotExist:
+            return JsonResponse({"error": "Usuario no encontrado"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al consultar el equipo: {str(e)}"}, status=500)
+    else:
+        return JsonResponse({"error": "Operación no soportada. Usa GET."}, status=405)

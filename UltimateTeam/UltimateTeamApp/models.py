@@ -8,6 +8,10 @@ from django.core.exceptions import ValidationError
 
 class Equipo(models.Model):
     nombre = models.CharField(max_length=100)
+    cartas = models.ManyToManyField(
+        'CartasJugadore',
+        related_name='equipos'
+    )
 
     def __str__(self):
         if hasattr(self, 'usuario'):
@@ -48,13 +52,6 @@ class CartasJugadore(models.Model):
         ED = 'ED'
 
     nombre = models.CharField(max_length=100)
-    equipo = models.ForeignKey(
-        Equipo,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='cartas'
-    )
     pais = models.CharField(max_length=50)
     posicion = models.CharField(
         max_length=3,

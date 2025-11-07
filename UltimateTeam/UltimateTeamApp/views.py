@@ -3,6 +3,7 @@ import random
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Count
 from django.http import JsonResponse
 
 # Create your views here.
@@ -138,12 +139,14 @@ def delete_usuario(request, id):
 def get_cartaID(request, id):
     if request.method == "GET":
         try:
-            carta_jugador = CartasJugadore.objects.values().get(id=id)
+            carta = CartasJugadore.objects.get(id=id)
 
-            if carta_jugador.get('equipo_id') is not None:
+            if carta.equipos.count() > 0:
                 return JsonResponse({
-                    "error": f"La carta con ID {id} pertenece a un equipo y no puede ser consultada individualmente."
+                    "error": f"La carta con ID {id} pertenece a {carta.equipos.count()} equipo(s) y no puede ser consultada individualmente."
                 }, status=403)
+
+            carta_jugador = CartasJugadore.objects.values().get(id=id)
 
             if carta_jugador.get('posicion') == 'POR':
                 for key in ATRIBUTOS_JUGADOR:
@@ -170,7 +173,9 @@ def get_cartaID(request, id):
 def get_cartas(request):
     if request.method == "GET":
         try:
-            cartas_query = CartasJugadore.objects.filter(equipo_id__isnull=True).values()
+            cartas_query = CartasJugadore.objects.annotate(
+                num_equipos=Count('equipos')
+            ).filter(num_equipos=0).values()
 
             cartas_list = list(cartas_query)
 
@@ -266,9 +271,9 @@ def update_carta(request, id):
             carta = CartasJugadore.objects.get(id=id)
             data = json.loads(request.body)
 
-            if carta.equipo is not None:
+            if carta.equipos.count() > 0:
                 return JsonResponse({
-                    "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y no puede ser actualizada."
+                    "error": f"La carta con ID {id} está asignada a '{carta.equipos.count()}' equipo(s) y no puede ser actualizada."
                 }, status=403)
 
 
@@ -317,9 +322,9 @@ def activar_carta(request, id):
             try:
                 carta = CartasJugadore.objects.get(id=id)
 
-                if carta.equipo is not None:
+                if carta.equipos.count() > 0:
                     return JsonResponse({
-                        "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y su estado activo no puede ser modificado."
+                        "error": f"La carta con ID {id} está asignada a'{carta.equipos.count()}' equipo(s) y su estado activo no puede ser modificado."
                     }, status=403)
 
                 if carta.esta_activa:
@@ -354,9 +359,9 @@ def desactivar_carta(request, id):
         try:
             carta = CartasJugadore.objects.get(id=id)
 
-            if carta.equipo is not None:
+            if carta.equipos.count() > 0:
                 return JsonResponse({
-                    "error": f"La carta con ID {id} está asignada al equipo '{carta.equipo.nombre}' y su estado activo no puede ser modificado."
+                    "error": f"La carta con ID {id} está asignada a'{carta.equipos.count()}' equipo(s) y su estado activo no puede ser modificado."
                 }, status=403)
 
 
@@ -402,7 +407,7 @@ def asignar_equipo_servicio(request, usuario_id):
                     status=400
                 )
 
-            cartas_libres = CartasJugadore.objects.filter(equipo=None, esta_activa=True)
+            cartas_libres = CartasJugadore.objects.filter(esta_activa=True)
 
             porteros_libres = []
             defensas_libres = []
@@ -458,8 +463,7 @@ def asignar_equipo_servicio(request, usuario_id):
             cartas_seleccionadas.extend(random.sample(centrocampistas_libres, num_cen))
             cartas_seleccionadas.extend(random.sample(delanteros_libres, num_del))
 
-            ids_cartas_seleccionadas = [carta.id for carta in cartas_seleccionadas]
-            CartasJugadore.objects.filter(id__in=ids_cartas_seleccionadas).update(equipo=nuevo_equipo)
+            nuevo_equipo.cartas.add(*cartas_seleccionadas)
 
             return JsonResponse({
                 'mensaje': '¡Equipo creado y asignado con éxito!',

@@ -6,3 +6,5 @@ from .models import *
 admin.site.register(Usuario)
 admin.site.register(Equipo)
 admin.site.register(CartasJugadore)
+admin.site.register(Pais)
+admin.site.register(Liga)

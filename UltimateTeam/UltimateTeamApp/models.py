@@ -35,6 +35,21 @@ class Usuario(models.Model):
     def __str__(self):
         return self.nombre
 
+class Pais(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nombre
+
+    class Meta:
+        verbose_name_plural = "Países"
+
+class Liga(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.nombre
+
 class CartasJugadore(models.Model):
     class Posiciones(models.TextChoices):
         POR = 'POR'
@@ -52,12 +67,20 @@ class CartasJugadore(models.Model):
         ED = 'ED'
 
     nombre = models.CharField(max_length=100)
-    pais = models.CharField(max_length=50)
+    pais = models.ForeignKey(
+        Pais,
+        on_delete=models.SET_NULL,
+        null=True
+    )
     posicion = models.CharField(
         max_length=3,
         choices=Posiciones.choices,
     )
-    liga = models.CharField(max_length=100)
+    liga = models.ForeignKey(
+        Liga,
+        on_delete=models.SET_NULL,
+        null=True
+    )
 
     ritmo = models.PositiveIntegerField(null=True, blank=True, validators=[MaxValueValidator(99), MinValueValidator(1)])
     tiro = models.PositiveIntegerField(null=True, blank=True, validators=[MaxValueValidator(99), MinValueValidator(1)])

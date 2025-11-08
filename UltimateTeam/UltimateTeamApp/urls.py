@@ -9,7 +9,7 @@ urlpatterns = [
     path('añadirUsuario', views.add_usuario),
     path('modificarUsuario/<int:id>', views.update_usuario),
     path('borrarUsuario/<int:id>', views.delete_usuario),
-    path('asignarEquipo/<int:id>', views.asignar_equipo),
+
 
     #CARTA JUGADOR
     path('obtenerCartaJugador/<int:id>', views.get_cartaID),
@@ -25,4 +25,6 @@ urlpatterns = [
     #CONSULTAR EL EQUIPO DE UN USUARIO
     path('usuarioConsultarEquipo/<int:usuario_id>', views.get_equipo_usuario),
 
+    #AÑADIR UNA CARTA A UN EQUIPO
+    path('añadirCartaEquipo/<int:id_equipo>', views.add_carta_to_equipo)
 ]

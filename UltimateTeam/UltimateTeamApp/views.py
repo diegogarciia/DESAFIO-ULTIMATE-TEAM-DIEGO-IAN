@@ -1,7 +1,7 @@
 import json
 import random
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.db.models import Count
 from django.http import JsonResponse
@@ -14,7 +14,13 @@ from django.http import JsonResponse
 
 ATRIBUTOS_JUGADOR = ["ritmo", "tiro", "pase", "regate", "defensa", "fisico"]
 ATRIBUTOS_PORTERO = ["estirada", "parada", "saque", "reflejos", "posicionamiento", "velocidad"]
-
+LIMITES_EQUIPO = {
+    'total': {'min': 23, 'max': 25},
+    'Portero': {'min': 2, 'max': 3},
+    'Defensa': {'min': 8, 'max': 10},
+    'Centrocampista': {'min': 6, 'max': 9},
+    'Delantero': {'min': 5, 'max': 6},
+}
 
 def get_usuarioID(request, id):
     if request.method == "GET":
@@ -533,3 +539,70 @@ def get_equipo_usuario(request, usuario_id):
             return JsonResponse({"error": f"Error inesperado al consultar el equipo: {str(e)}"}, status=500)
     else:
         return JsonResponse({"error": "Operación no soportada. Usa GET."}, status=405)
+
+
+@csrf_exempt
+@transaction.atomic
+def add_carta_to_equipo(request, id_equipo):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            id_carta = data.get('id_carta')
+
+            if id_carta is None:
+                return JsonResponse({"error": "Se requiere el 'id_carta' en el cuerpo de la solicitud."}, status=400)
+
+
+            equipo = Equipo.objects.get(id=id_equipo)
+            carta = CartasJugadore.objects.get(id=id_carta)
+
+
+            if not carta.esta_activa:
+                return JsonResponse(
+                    {"error": f"La carta '{carta.nombre}' debe estar activa para poder ser asignada a un equipo."},status=400)
+
+
+            if equipo.cartas.filter(id=id_carta).exists():
+                return JsonResponse({
+                    "error": f"La carta '{carta.nombre}' ya se encuentra asociada al equipo '{equipo.nombre}'."}, status=400)
+
+            cartas_activas_actuales = list(equipo.cartas.filter(esta_activa=True))
+            conteo_actual = len(cartas_activas_actuales)
+
+            if conteo_actual >= LIMITES_EQUIPO['total']['max']:
+                return JsonResponse({
+                    "error": f"El equipo ya tiene el máximo de {LIMITES_EQUIPO['total']['max']} cartas activas asociadas. No se puede insertar esta carta."
+                }, status=400)
+
+
+            tipo_posicion_nueva = carta.tipo_posicion
+
+            conteo_actual_tipo = sum(1 for c in cartas_activas_actuales if c.tipo_posicion == tipo_posicion_nueva)
+
+
+            limite_maximo_tipo = LIMITES_EQUIPO[tipo_posicion_nueva]['max']
+
+            if conteo_actual_tipo >= limite_maximo_tipo:
+                return JsonResponse({
+                    "error": f"No se puede asociar la carta '{carta.nombre}'. Ya se alcanzó el límite máximo de {limite_maximo_tipo} jugadores en la categoría '{tipo_posicion_nueva}'."
+                }, status=400)
+
+            equipo.cartas.add(carta)
+
+            return JsonResponse({
+                "mensaje": f"Carta '{carta.nombre}' ({carta.posicion}) asignada correctamente al equipo '{equipo.nombre}'.",
+                "jugadores_totales_equipo": conteo_actual + 1,
+                f"jugadores_en_{tipo_posicion_nueva}": conteo_actual_tipo + 1
+            })
+
+        except ObjectDoesNotExist as e:
+            if "Equipo" in str(e):
+                return JsonResponse({"error": f"Equipo con ID {id_equipo} no encontrado."}, status=404)
+            else:
+                return JsonResponse({"error": f"Carta con ID {id_carta} no encontrada."}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Formato JSON inválido."}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": f"Error inesperado al añadir carta al equipo: {str(e)}"}, status=500)
+    else:
+        return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)

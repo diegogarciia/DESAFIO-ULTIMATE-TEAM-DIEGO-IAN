@@ -1,4 +1,6 @@
 from django.test import TestCase, Client
+from django.urls import reverse
+
 from .models import Usuario, Equipo, CartasJugadore
 import json
 
@@ -17,6 +19,10 @@ class ModelosUnitTests(TestCase):
         self.assertEqual(carta_portero.tipo_posicion, 'Portero')
 
 class VistasIntegrationTests(TestCase):
+
+    def __init__(self, methodName: str = "runTest"):
+        super().__init__(methodName)
+
 
     def setUp(self):
         self.client = Client()
@@ -57,3 +63,18 @@ class VistasIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 404)
         data = json.loads(response.content)
         self.assertEqual(data['error'], 'Este usuario no tiene ningún equipo asignado.')
+
+    def calculo_media_exitoso_solo_activos(self):
+        url = reverse('calcular_media_equipo', args=[self.equipo_calculo.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertIn('media_general_equipo', data)
+
+        self.assertEqual(data['total_jugadores_activos'], 2, "Solo cartas activas.")
+
+        self.assertAlmostEqual(data['media_general_equipo'], self.media_esperada, 2,"La media calculada debe ser 85.00.")

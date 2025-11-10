@@ -3,7 +3,7 @@ import random
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import IntegrityError, transaction
-from django.db.models import Count
+from django.db.models import Count, Avg
 from .models import *
 from django.http import JsonResponse
 
@@ -640,3 +640,62 @@ def add_carta_to_equipo(request, id_equipo):
             return JsonResponse({"error": f"Error inesperado al añadir carta al equipo: {str(e)}"}, status=500)
     else:
         return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)
+
+
+@csrf_exempt
+def calcular_media_equipo(request, id_equipo):
+    if request.method == "POST":
+        try:
+            equipo = Equipo.objects.get(id=id_equipo)
+
+            media_query = equipo.cartas.filter(
+                esta_activa=True
+            ).aggregate(
+                media_equipo=Avg('media'),
+                total_jugadores_activos=Count('id')
+            )
+
+            media_equipo = media_query.get('media_equipo')
+            total_jugadores = media_query.get('total_jugadores_activos')
+
+
+            if total_jugadores == 0 or media_equipo is None:
+                media_calculada = 0
+                mensaje = f"El equipo '{equipo.nombre}' no tiene cartas activas"
+            else:
+
+                media_calculada = round(media_equipo, 2)
+                mensaje = f"Se ha calculado la media correctamente."
+
+
+            equipo.media_general = media_calculada
+            equipo.save(update_fields=['media_general'])
+            media_calculada = int(round(media_calculada,0))
+            estrellas = ""
+            if media_calculada >= 0 & media_calculada <= 19:
+                estrellas = "1 estrella"
+            elif media_calculada >= 20 & media_calculada <= 39:
+                estrellas = "2 estrellas"
+            elif media_calculada >= 40 & media_calculada <= 59:
+                estrellas = "3 estrellas"
+            elif media_calculada >= 60 & media_calculada <= 79:
+                estrellas = "4 estrellas"
+            elif media_calculada >= 80 & media_calculada <= 100:
+                estrellas = "5 estrellas"
+
+
+            return JsonResponse({
+                "mensaje": mensaje,
+                "equipo_nombre": equipo.nombre,
+                "total_jugadores_activos": total_jugadores,
+                "media_general_guardada": media_calculada,
+                "estrellas": estrellas
+            })
+
+        except ObjectDoesNotExist:
+            return JsonResponse({"error": "Equipo no encontrado"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": f"Error en el cálculo y guardado: {str(e)}"}, status=500)
+    else:
+
+        return JsonResponse({"error": "Método no soportado. Usa POST para guardar el cálculo."}, status=405)

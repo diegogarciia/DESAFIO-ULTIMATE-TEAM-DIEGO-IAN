@@ -21,6 +21,8 @@ urlpatterns = [
     #EQUIPOS
     path('usuario/asignarEquipo/<int:usuario_id>', views.asignar_equipo_servicio),
     path('usuarioConsultarEquipo/<int:usuario_id>', views.get_equipo_usuario),
-    path('añadirCartaEquipo/<int:id_equipo>', views.add_carta_to_equipo)
+    path('añadirCartaEquipo/<int:id_equipo>', views.add_carta_to_equipo),
 
+    #MONSTRAR MEDIA EQUIPO
+    path('calcularMediaEquipo/<int:id_equipo>', views.calcular_media_equipo)
 ]

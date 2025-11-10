@@ -12,6 +12,7 @@ class Equipo(models.Model):
         'CartasJugadore',
         related_name='equipos'
     )
+    media_general = models.FloatField(default=0.0)
 
     def __str__(self):
         if hasattr(self, 'usuario'):

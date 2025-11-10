@@ -57,3 +57,12 @@ class VistasIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 404)
         data = json.loads(response.content)
         self.assertEqual(data['error'], 'Este usuario no tiene ningún equipo asignado.')
+
+    def test_consultar_media_equipo(self):
+        url = f'/api/usuarioConsultarMediaEquipo/{self.usuario.id}'
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        data = json.loads(response.content)
+

@@ -12,6 +12,12 @@ class Equipo(models.Model):
         'CartasJugadore',
         related_name='equipos'
     )
+    media_equipo = models.PositiveIntegerField(
+        default=0,
+        editable=False,
+        help_text="Media global del equipo."
+    )
+    estrellas = models.CharField(max_length=100)
 
     def __str__(self):
         if hasattr(self, 'usuario'):

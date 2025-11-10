@@ -640,3 +640,61 @@ def add_carta_to_equipo(request, id_equipo):
             return JsonResponse({"error": f"Error inesperado al añadir carta al equipo: {str(e)}"}, status=500)
     else:
         return JsonResponse({"error": "Método no soportado. Usa POST."}, status=405)
+
+@csrf_exempt
+def get_media_equipo_usuario(request, id_usuario):
+    if request.method == "GET":
+        try:
+            usuario = Usuario.objects.get(pk=id_usuario)
+
+            if usuario.equipo is None:
+                return JsonResponse({
+                    "error": "Este usuario no tiene ningún equipo asignado."
+                }, status=404)
+
+            equipo = usuario.equipo
+
+            cartas_del_equipo = equipo.cartas.filter(esta_activa=True).values(
+                'id', 'nombre', 'posicion', 'media', 'esta_activa',
+                'pais__nombre', 'liga__nombre',
+                'ritmo', 'tiro', 'pase', 'regate', 'defensa', 'fisico',
+                'estirada', 'parada', 'saque', 'reflejos', 'posicionamiento', 'velocidad'
+            )
+
+            cartas_list = list(cartas_del_equipo)
+
+            if cartas_del_equipo < 20:
+                return JsonResponse({"error": "La cantidad de jugadores activos debe de ser superior a 20. No es posible realizar el cálculo de la media del equipo."}, status=400)
+
+            cantidad_porteros = 0
+
+            for carta in cartas_list:
+                if carta.tipo_posicion == "Portero":
+                    cantidad_porteros += 1
+
+            if cantidad_porteros < 2:
+                return JsonResponse({"error": "La cantidad de porteros debe de ser superior a 2. No es posible realizar el cálculo de la media del equipo."}, status=400)
+
+            puntos_equipo = 0
+
+            for carta in cartas_list:
+                puntos_equipo += carta.media
+
+            media_equipo = puntos_equipo / len(cartas_list)
+
+            estrellas_equipo = 0
+
+            response_data = {
+                'media del equipo': equipo.media_equipo,
+                'número de jugadores usados para el cálculo': equipo.cartas.count(),
+                "estrellas": estrellas_equipo,
+            }
+
+            return JsonResponse(response_data, safe=True)
+
+        except ObjectDoesNotExist as e:
+            if "Usuario" in str(e):
+                return JsonResponse({"error": f"Usuario con ID {id_usuario} no encontrado."}, status=404)
+
+    else:
+        return JsonResponse({"error": "Operación no soportada. Usa GET."}, status=405)
